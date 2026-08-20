@@ -5,7 +5,7 @@ Two Dockerfiles for a production bolt.diy deployment on Railway:
 | File | Service | What it is |
 |---|---|---|
 | `Dockerfile.app` | `boltdiy` | The published bolt.diy image plus a CA trust store |
-| `Dockerfile` | `boltdiy-gateway` | A [Caddy](https://caddyserver.com) gateway putting HTTP basic auth in front of it |
+| `Dockerfile` | `auth-gateway` | A [Caddy](https://caddyserver.com) gateway putting HTTP basic auth in front of it |
 
 Select them with `RAILWAY_DOCKERFILE_PATH`.
 
