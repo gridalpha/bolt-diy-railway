@@ -1,0 +1,44 @@
+# Public entry point for a private bolt.diy service on Railway.
+#
+# bolt.diy has no authentication of its own, and one of its API routes
+# (/api/git-proxy/*) will forward a request to any https host, so the app is
+# kept off the public network and reached only through this gateway.
+
+{
+	admin off
+	auto_https off
+
+	servers {
+		# Railway's edge reaches containers from CGNAT space, so its
+		# X-Forwarded-For / X-Forwarded-Proto are the trustworthy ones.
+		trusted_proxies static 100.64.0.0/10 fd00::/8
+	}
+}
+
+:{$PORT:8080} {
+	log {
+		output stdout
+		format console
+	}
+
+	# Liveness for Railway's prober. It answers for this container only:
+	# a gateway that health-checks its upstream fails its own first deploy,
+	# because <service>.railway.internal does not resolve until that
+	# container exists.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle {
+		basic_auth {
+			{$BOLT_AUTH_USERNAME} {$BOLT_AUTH_PASSWORD_HASH}
+		}
+
+		reverse_proxy {$BOLT_UPSTREAM} {
+			# bolt.diy streams model output token by token; without this
+			# the response is buffered and the chat appears frozen.
+			flush_interval -1
+			header_up X-Real-IP {client_ip}
+		}
+	}
+}
