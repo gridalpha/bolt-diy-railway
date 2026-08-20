@@ -15,6 +15,21 @@
 	}
 }
 
+(gateway_auth) {
+	basic_auth {
+		{$BOLT_AUTH_USERNAME} {$BOLT_AUTH_PASSWORD_HASH}
+	}
+}
+
+(to_bolt) {
+	reverse_proxy {$BOLT_UPSTREAM} {
+		# bolt.diy streams model output token by token; without this the
+		# response is buffered and the chat appears frozen.
+		flush_interval -1
+		header_up X-Real-IP {client_ip}
+	}
+}
+
 :{$PORT:8080} {
 	log {
 		output stdout
@@ -29,16 +44,23 @@
 		respond "ok" 200
 	}
 
-	handle {
-		basic_auth {
-			{$BOLT_AUTH_USERNAME} {$BOLT_AUTH_PASSWORD_HASH}
-		}
+	# Same as below, minus the Authorization header. A browser attaches this
+	# gateway's basic-auth credential to every same-origin request, and
+	# bolt.diy's git proxy forwards Authorization verbatim to the git host —
+	# so GitHub answers 401 and every clone, including the starter templates,
+	# fails. Dropping it here is what makes those work.
+	handle /api/git-proxy/* {
+		import gateway_auth
 
 		reverse_proxy {$BOLT_UPSTREAM} {
-			# bolt.diy streams model output token by token; without this
-			# the response is buffered and the chat appears frozen.
 			flush_interval -1
 			header_up X-Real-IP {client_ip}
+			header_up -Authorization
 		}
+	}
+
+	handle {
+		import gateway_auth
+		import to_bolt
 	}
 }
