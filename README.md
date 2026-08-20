@@ -1,7 +1,28 @@
-# bolt.diy on Railway — authenticating gateway
+# bolt.diy on Railway
 
-A one-image [Caddy](https://caddyserver.com) gateway that puts HTTP basic auth in
-front of a private [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) service.
+Two Dockerfiles for a production bolt.diy deployment on Railway:
+
+| File | Service | What it is |
+|---|---|---|
+| `Dockerfile.app` | `boltdiy` | The published bolt.diy image plus a CA trust store |
+| `Dockerfile` | `boltdiy-gateway` | A [Caddy](https://caddyserver.com) gateway putting HTTP basic auth in front of it |
+
+Select them with `RAILWAY_DOCKERFILE_PATH`.
+
+## Dockerfile.app — why the app needs a repo at all
+
+`ghcr.io/stackblitz-labs/bolt.diy:latest` ships with **no CA certificates**:
+`/etc/ssl/certs` is empty, because the `node:22-bookworm-slim` base ends its own
+build with `apt-get purge --auto-remove`. Node has a built-in root store so the
+app boots and serves normally — but wrangler runs the Remix server inside
+**workerd**, which uses the *system* store, so every server-side HTTPS call dies
+on `TLS peer's certificate is not trusted`. That is every LLM provider call, the
+git proxy behind "clone a repo" and the starter templates, and the GitHub,
+GitLab, Netlify, Vercel and Supabase integrations. The layer installs
+`ca-certificates` and points `SSL_CERT_FILE` at the bundle. Nothing else is
+changed.
+
+## Dockerfile — the authenticating gateway
 
 bolt.diy ships no authentication, and its `/api/git-proxy/*` route forwards a
 request to any `https` host it is given. Published directly, a deployment is an
@@ -15,7 +36,7 @@ Caddy's `basic_auth` takes a **bcrypt hash**, never a plaintext password. A hash
 cannot be expressed as a Railway variable, so `entrypoint.sh` derives it at boot
 from the one secret the deployer supplies.
 
-## Variables
+## Gateway variables
 
 | Variable | Default | Purpose |
 |---|---|---|
